@@ -1,0 +1,111 @@
+import os
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
+from xgboost import XGBClassifier
+from sklearn import metrics
+%matplotlib inline
+dataset_train=pd.read_csv("Google_Stock_Price_Train.csv")
+dataset_train.head()
+
+#Load the Training Dataset
+training_set=dataset_train.iloc[:,1:2].values
+print(training_set)
+print(training_set.shape)
+
+#Use the Open Stock Price Column to Train Model
+from sklearn.preprocessing import MinMaxScaler
+scaler=MinMaxScaler(feature_range=(0,1))
+scaled_training_set=scaler.fit_transform(training_set)
+scaled_training_set
+
+#Creating X_train and y_train Data Structures
+X_train=[]
+Y_train=[]
+for i in range(60,1258):
+    X_train.append(scaled_training_set[i-60:i,0])
+    Y_train.append(scaled_training_set[i,0])
+X_train=np.array(X_train)
+Y_train=np.array(Y_train)
+print(X_train.shape)
+print(Y_train.shape)
+
+#Reshape the Data
+X_train=np.reshape(X_train,(X_train.shape[0],X_train.shape[1],1))
+X_train.shape
+
+#Building the Model 
+from keras.models import Sequential
+from keras.layers import LSTM
+from keras.layers import Dense
+from keras.layers import Dropout
+regressor =Sequential()
+regressor.add(LSTM(units=50,return_sequences=True,input_shape=(X_train.shape[1],1)))
+regressor.add(Dropout(0.2))
+regressor.add(LSTM(units=50,return_sequences=True))
+regressor.add(Dropout(0.2))
+regressor.add(LSTM(units=50,return_sequences=True))
+regressor.add(Dropout(0.2))
+regressor.add(LSTM(units=50))
+regressor.add(Dropout(0.2))
+regressor.add(Dense(units=1))
+
+#Fitting the Model
+regressor.compile(optimizer='adam',loss='mean_squared_error')
+regressor.fit(X_train,Y_train,epochs=100,batch_size=32)
+
+#Extracting the Actual Stock Prices 
+
+dataset_test=pd.read_csv("Google_Stock_Price_Train.csv")
+actual_stock_price=dataset_test.iloc[:,1:2].values
+
+#Preparing the Input for the Model
+
+dataset_total=pd.concat((dataset_train['Open'],dataset_test['Open']),axis=0)
+inputs=dataset_total[len(dataset_total)-len(dataset_test)-60:].values
+inputs=inputs.reshape(-1,1)
+inputs=scaler.transform(inputs)
+X_test=[]
+for i in range(60,1258):
+    X_test.append(inputs[i-60:i,0])
+X_test=np.array(X_test)
+Y_test=np.reshape(X_test,(X_test.shape[0],X_test.shape[1],1))
+predicted_stock_price=regressor.predict(X_test)
+predicted_stock_price=scaler.inverse_transform(predicted_stock_price)
+print(X_train.shape)
+print(Y_train.shape)
+
+#Plotting the Actual and Predicted Prices 
+
+plt.plot(actual_stock_price,color='green',label="actual stock price")
+plt.plot(predicted_stock_price,color='blue',label="predicted stock price")
+plt.title("Stock price prediction")
+plt.xlabel("Time")
+plt.ylabel("stock price")
+plt.legend()
+
+
+#Model Development and Evaluation:
+
+models = [LogisticRegression(), SVC(kernel='poly', probability=True), XGBClassifier()]
+for i in range(3):
+  models[i].fit(X_train, Y_train)
+  print(f'{models[i]} : ')
+  print('Training Accuracy : ', metrics.roc_auc_score(
+    Y_train, models[i].predict_proba(X_train)[:,1]))
+  print('Validation Accuracy : ', metrics.roc_auc_score(
+    Y_valid, models[i].predict_proba(X_valid)[:,1]))
+  print()
+
+
+
+
+
+
+
+
+
